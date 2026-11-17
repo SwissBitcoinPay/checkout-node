@@ -1,0 +1,72 @@
+{
+  "name": "@sattleme/checkout",
+  "version": "1.0.0",
+  "description": "Take Lightning and on-chain payments for a sattle.me merchant from an online shop's server: invoices, deposit addresses, registry declarations, payment checks.",
+  "license": "MIT",
+  "author": "sattle.me (https://sattle.me)",
+  "homepage": "https://github.com/sattleme/checkout-node#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sattleme/checkout-node.git"
+  },
+  "bugs": "https://github.com/sattleme/checkout-node/issues",
+  "keywords": [
+    "bitcoin",
+    "lightning",
+    "lnurl",
+    "nostr",
+    "payments",
+    "sattleme"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "spec:check": "node scripts/spec.mjs check",
+    "check": "npm run spec:check && npm run lint && npm run format:check && npm run typecheck && npm test && npm run build",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "@noble/ciphers": "2.4.0",
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0",
+    "ws": "8.23.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.6.6",
+    "@types/ws": "8.18.2",
+    "eslint": "10.15.0",
+    "prettier": "3.10.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.73.0",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  }
+}

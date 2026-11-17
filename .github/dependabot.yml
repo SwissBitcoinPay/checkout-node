@@ -1,0 +1,28 @@
+version: 2
+updates:
+  # The SHA-pinned actions of .github/workflows/, in one pull request.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+  # The package's dependencies and tools, pinned exactly, in one pull request; a release waits a
+  # week before it is proposed.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    versioning-strategy: increase
+    cooldown:
+      default-days: 7
+    groups:
+      npm:
+        patterns: ["*"]
+    ignore:
+      # typescript-eslint supports TypeScript below 6.1: a major version waits for it.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]

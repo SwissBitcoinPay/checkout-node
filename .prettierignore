@@ -1,0 +1,5 @@
+node_modules/
+dist/
+package-lock.json
+# The pinned copy of the specification, unchanged (spec/PIN.json).
+spec/

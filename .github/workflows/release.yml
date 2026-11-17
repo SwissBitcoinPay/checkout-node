@@ -1,0 +1,102 @@
+name: Release
+
+# A maintainer pushes tag vX.Y.Z (= package.json "version", on main): the package is checked
+# again, then staged on npm as @sattleme/checkout (`npm stage publish`): nobody can install
+# it until a maintainer approves it with 2FA (`npm stage approve`). Never from a development or
+# agent session (checkout-spec's PORTING.md, "Releases").
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  # Before the environment gate, so reviewers are only asked to approve valid releases.
+  verify-tag:
+    name: Verify release tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      # The Node of .nvmrc, whatever the runner has installed.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Tag must match package.json's version
+        run: |
+          expected="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match the package's version ($expected)."
+            exit 1
+          fi
+      - name: Tagged commit must be on main
+        run: |
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::$GITHUB_REF_NAME points to a commit that is not on main."
+            exit 1
+          fi
+
+  stage:
+    name: npm stage publish (@sattleme/checkout)
+    needs: [checks, verify-tag]
+    # GitHub-hosted, as every job: npm's trusted publishing (OIDC) accepts cloud-hosted runners only
+    # (docs.npmjs.com/trusted-publishers, "Limitations").
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # The protected environment (required reviewers: a maintainer approves each release; deployment
+    # tags: v*). npm trusts this job alone, with no stored token (trusted publishing, OIDC): the
+    # package's trusted publisher on npmjs.com is sattleme/checkout-node, release.yml,
+    # environment npm, allowed actions `npm stage publish` only, and its publishing access is
+    # "Require two-factor authentication and disallow tokens": nothing here publishes a version
+    # directly. A trusted publisher missing or different fails the stage with ENEEDAUTH, and npm
+    # gives the registry's reason only with `--loglevel verbose`.
+    environment: npm
+    permissions:
+      contents: read
+      # The OIDC token: npm's trusted publishing, and the signature of the provenance.
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          # No cache in a release: what is staged is built from the lockfile alone.
+          package-manager-cache: false
+      # No install script (esbuild's, for Vite: needless here) runs in a job that can ask for the
+      # OIDC token: only npm and the build (tsc). The tarball is the same, byte for byte.
+      - run: npm ci --ignore-scripts
+      # `npm stage` needs npm 11.15.0 or later; Node 22 brings npm 10.9. Pinned, as every tool of
+      # this job. `prepack` builds dist/ again from this very commit. `--provenance`: npm's signed
+      # attestation that this commit and this workflow built the tarball (a public repository);
+      # trusted publishing adds it by itself; stated, a stage that cannot carry it fails instead.
+      - name: Stage on npm
+        run: npx --yes npm@11.19.1 stage publish --access public --provenance
+      - name: How to approve it
+        run: |
+          {
+            echo "### @sattleme/checkout $GITHUB_REF_NAME is staged on npm"
+            echo "Nobody can install it yet. A maintainer with 2FA checks it, then approves it"
+            echo "(npm 11.15.0 or later; or npmjs.com, the package's Staged Packages tab)."
+            echo "Its stage id and shasum are in this run's log, step \"Stage on npm\": approve that"
+            echo "stage, no other."
+            echo '```sh'
+            echo "npm stage list @sattleme/checkout"
+            echo "npm stage download <stage-id>   # its shasum: that of npx npm@11.19.1 pack, at the tag"
+            echo "                                # after npm ci, on Node $(cat .nvmrc), files in LF"
+            echo "npm stage approve <stage-id>    # asks for the 2FA code; or: npm stage reject"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
